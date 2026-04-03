@@ -14,9 +14,9 @@ import (
 
 	"plan-balance-service/internal/config"
 	"plan-balance-service/internal/db"
-	"plan-balance-service/internal/logger"
 	"plan-balance-service/internal/middleware"
-	"plan-balance-service/internal/validator"
+	"plan-balance-service/pkg/logger"
+	"plan-balance-service/pkg/utils"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 	defer db.CloseDB()
 
 	// 4. Initialize Validator
-	validator.InitValidator()
+	utils.InitValidator()
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
