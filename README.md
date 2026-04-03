@@ -7,12 +7,12 @@ This project follows a structured architecture for better maintainability and sc
 - `cmd/api/`: Application entry point.
 - `internal/`: Private application and business logic.
     - `config/`: Configuration and environment variable loading.
+    - `db/`: Database connection pooling.
     - `handler/`: HTTP handlers (Controllers).
     - `service/`: Core business logic.
     - `repository/`: Database access layer.
     - `model/`: Domain entities and database structs.
     - `dto/`: Data Transfer Objects for request/response.
-    - `db/`: Database related code (connection).
     - `middleware/`: Gin middleware (auth, logging, etc.).
 - `pkg/`: Public utility packages.
     - `logger/`: Zap logger integration.
