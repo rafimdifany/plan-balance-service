@@ -14,7 +14,10 @@ import (
 
 	"plan-balance-service/internal/config"
 	"plan-balance-service/internal/db"
+	"plan-balance-service/internal/handler"
 	"plan-balance-service/internal/middleware"
+	"plan-balance-service/internal/repository"
+	"plan-balance-service/internal/service"
 	"plan-balance-service/pkg/logger"
 	"plan-balance-service/pkg/utils"
 )
@@ -35,6 +38,17 @@ func main() {
 	// 4. Initialize Validator
 	utils.InitValidator()
 
+	// Repositories
+	userRepo := repository.NewUserRepository(db.GetPool())
+	authRepo := repository.NewAuthRepository(db.GetPool())
+	sessionRepo := repository.NewSessionRepository(db.GetPool())
+
+	// Services
+	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, cfg)
+
+	// Handlers
+	authHandler := handler.NewAuthHandler(authService)
+
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -44,6 +58,19 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.ZapLogger(log))
 	router.Use(middleware.NewCORS())
+
+	// Routes
+	v1 := router.Group("/api/v1")
+	{
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/google", authHandler.GoogleLogin)
+			auth.POST("/refresh", authHandler.Refresh)
+			auth.POST("/logout", authHandler.Logout)
+		}
+	}
 
 	// Health Check
 	router.GET("/ping", func(c *gin.Context) {
