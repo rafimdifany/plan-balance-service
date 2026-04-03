@@ -5,13 +5,14 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"plan-balance-service/internal/config"
 	"plan-balance-service/internal/dto"
 	"plan-balance-service/internal/model"
 	"plan-balance-service/internal/repository"
 	"plan-balance-service/pkg/utils"
-
-	"github.com/google/uuid"
 )
 
 var (
@@ -33,21 +34,29 @@ type authService struct {
 	authRepo    repository.AuthRepository
 	sessionRepo repository.SessionRepository
 	cfg         *config.Config
+	db          *pgxpool.Pool
 }
 
-func NewAuthService(userRepo repository.UserRepository, authRepo repository.AuthRepository, sessionRepo repository.SessionRepository, cfg *config.Config) AuthService {
+func NewAuthService(
+	userRepo repository.UserRepository,
+	authRepo repository.AuthRepository,
+	sessionRepo repository.SessionRepository,
+	cfg *config.Config,
+	db *pgxpool.Pool,
+) AuthService {
 	return &authService{
 		userRepo:    userRepo,
 		authRepo:    authRepo,
 		sessionRepo: sessionRepo,
 		cfg:         cfg,
+		db:          db,
 	}
 }
 
 func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*dto.AuthResponseData, error) {
 	// Check if user exists
-	existing, _ := s.userRepo.GetByEmail(ctx, req.Email)
-	if existing != nil {
+	existing, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err == nil && existing != nil {
 		return nil, ErrEmailExists
 	}
 
@@ -56,6 +65,13 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 	if err != nil {
 		return nil, err
 	}
+
+	// Start Transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
 
 	// Create User
 	user := &model.User{
@@ -66,7 +82,7 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 		UpdatedAt: time.Now(),
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	if err := s.userRepo.CreateTx(ctx, tx, user); err != nil {
 		return nil, err
 	}
 
@@ -80,7 +96,11 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := s.authRepo.Create(ctx, auth); err != nil {
+	if err := s.authRepo.CreateTx(ctx, tx, auth); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -90,15 +110,21 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 func (s *authService) Login(ctx context.Context, req dto.LoginRequest) (*dto.AuthResponseData, error) {
 	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInvalidCredentials
+		}
+		return nil, err
 	}
 
 	auth, err := s.authRepo.GetByUserIDAndProvider(ctx, user.ID, model.ProviderEmail)
-	if err != nil || auth.PasswordHash == nil {
-		return nil, ErrInvalidCredentials
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInvalidCredentials
+		}
+		return nil, err
 	}
 
-	if !utils.CheckPasswordHash(req.Password, *auth.PasswordHash) {
+	if auth.PasswordHash == nil || !utils.CheckPasswordHash(req.Password, *auth.PasswordHash) {
 		return nil, ErrInvalidCredentials
 	}
 
@@ -117,15 +143,19 @@ func (s *authService) GoogleLogin(ctx context.Context, req dto.GoogleLoginReques
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		// Create new user if not exists
-		user = &model.User{
-			ID:        uuid.New(),
-			Email:     email,
-			Name:      name,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-		if err := s.userRepo.Create(ctx, user); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Create new user if not exists
+			user = &model.User{
+				ID:        uuid.New(),
+				Email:     email,
+				Name:      name,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := s.userRepo.Create(ctx, user); err != nil {
+				return nil, err
+			}
+		} else {
 			return nil, err
 		}
 	}
@@ -133,16 +163,20 @@ func (s *authService) GoogleLogin(ctx context.Context, req dto.GoogleLoginReques
 	// Check if this google account is linked
 	auth, err := s.authRepo.GetByProviderInfo(ctx, model.ProviderGmail, googleID)
 	if err != nil {
-		// Link google account
-		auth = &model.AuthAccount{
-			ID:             uuid.New(),
-			UserID:         user.ID,
-			Provider:       model.ProviderGmail,
-			ProviderUserID: &googleID,
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
-		}
-		if err := s.authRepo.Create(ctx, auth); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Link google account
+			auth = &model.AuthAccount{
+				ID:             uuid.New(),
+				UserID:         user.ID,
+				Provider:       model.ProviderGmail,
+				ProviderUserID: &googleID,
+				CreatedAt:      time.Now(),
+				UpdatedAt:      time.Now(),
+			}
+			if err := s.authRepo.Create(ctx, auth); err != nil {
+				return nil, err
+			}
+		} else {
 			return nil, err
 		}
 	}
@@ -151,11 +185,17 @@ func (s *authService) GoogleLogin(ctx context.Context, req dto.GoogleLoginReques
 }
 
 func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) (*dto.RefreshResponseData, error) {
-	// Simple hash for lookup (ideally use a more secure hash)
-	tokenHash := req.RefreshToken
+	tokenHash := utils.HashRefreshToken(req.RefreshToken)
 
 	session, err := s.sessionRepo.GetByHash(ctx, tokenHash)
-	if err != nil || session.Revoked || time.Now().After(session.ExpiresAt) {
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInvalidToken
+		}
+		return nil, err
+	}
+
+	if session.Revoked || time.Now().After(session.ExpiresAt) {
 		return nil, ErrInvalidToken
 	}
 
@@ -175,7 +215,8 @@ func (s *authService) Refresh(ctx context.Context, req dto.RefreshTokenRequest) 
 }
 
 func (s *authService) Logout(ctx context.Context, req dto.RefreshTokenRequest) error {
-	return s.sessionRepo.Revoke(ctx, req.RefreshToken)
+	tokenHash := utils.HashRefreshToken(req.RefreshToken)
+	return s.sessionRepo.Revoke(ctx, tokenHash)
 }
 
 func (s *authService) generateAuthData(ctx context.Context, user *model.User) (*dto.AuthResponseData, error) {
@@ -184,13 +225,13 @@ func (s *authService) generateAuthData(ctx context.Context, user *model.User) (*
 		return nil, err
 	}
 
-	// In a real app, refresh token would be a long random secure string
-	refreshToken := uuid.New().String()
+	rawRefreshToken := uuid.New().String()
+	tokenHash := utils.HashRefreshToken(rawRefreshToken)
 
 	session := &model.UserSession{
 		ID:               uuid.New(),
 		UserID:           user.ID,
-		RefreshTokenHash: refreshToken,
+		RefreshTokenHash: tokenHash,
 		ExpiresAt:        time.Now().Add(7 * 24 * time.Hour),
 		Revoked:          false,
 		CreatedAt:        time.Now(),
@@ -207,7 +248,7 @@ func (s *authService) generateAuthData(ctx context.Context, user *model.User) (*
 			Name:  user.Name,
 		},
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: rawRefreshToken,
 		ExpiresIn:    3600,
 	}, nil
 }

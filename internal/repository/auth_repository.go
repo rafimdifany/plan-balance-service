@@ -4,12 +4,14 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"plan-balance-service/internal/model"
 )
 
 type AuthRepository interface {
 	Create(ctx context.Context, auth *model.AuthAccount) error
+	CreateTx(ctx context.Context, tx pgx.Tx, auth *model.AuthAccount) error
 	GetByUserIDAndProvider(ctx context.Context, userID uuid.UUID, provider model.AuthProvider) (*model.AuthAccount, error)
 	GetByProviderInfo(ctx context.Context, provider model.AuthProvider, providerUserID string) (*model.AuthAccount, error)
 }
@@ -25,6 +27,12 @@ func NewAuthRepository(db *pgxpool.Pool) AuthRepository {
 func (r *authRepository) Create(ctx context.Context, auth *model.AuthAccount) error {
 	query := `INSERT INTO auth_accounts (id, user_id, provider, provider_user_id, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.Exec(ctx, query, auth.ID, auth.UserID, auth.Provider, auth.ProviderUserID, auth.PasswordHash, auth.CreatedAt, auth.UpdatedAt)
+	return err
+}
+
+func (r *authRepository) CreateTx(ctx context.Context, tx pgx.Tx, auth *model.AuthAccount) error {
+	query := `INSERT INTO auth_accounts (id, user_id, provider, provider_user_id, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := tx.Exec(ctx, query, auth.ID, auth.UserID, auth.Provider, auth.ProviderUserID, auth.PasswordHash, auth.CreatedAt, auth.UpdatedAt)
 	return err
 }
 

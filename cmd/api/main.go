@@ -44,7 +44,7 @@ func main() {
 	sessionRepo := repository.NewSessionRepository(db.GetPool())
 
 	// Services
-	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, cfg)
+	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, cfg, db.GetPool())
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
