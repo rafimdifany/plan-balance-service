@@ -1,45 +1,68 @@
-# Project Setup Plan
+# Project Restructuring Plan
 
 ## Objective
-Membangun fondasi awal project backend menggunakan Golang dengan stack teknologi yang telah ditentukan. Dokumen ini berisi instruksi high-level untuk melakukan setup project.
+Melakukan restrukturisasi folder dan file pada project Golang agar sesuai dengan arsitektur standar yang lebih rapi (berbasis Domain-Driven Design / Clean Architecture).
 
-## Tech Stack & Dependencies
-- **Bahasa**: Golang
-- **HTTP Router**: `github.com/gin-gonic/gin`
-- **Database Driver**: `github.com/jackc/pgx/v5` (gunakan `pgxpool` untuk connection pooling)
-- **Query/ORM**: Tanpa ORM, cukup manual SQL query menggunakan `pgx`
-- **Authentication**: JWT (`github.com/golang-jwt/jwt/v5`)
-- **Password Hashing**: `golang.org/x/crypto/bcrypt`
-- **Google Auth Verify**: `google.golang.org/api/idtoken` (untuk memverifikasi token login dari Google)
-- **DB Migration**: `github.com/golang-migrate/migrate/v4`
-- **Logging**: `go.uber.org/zap`
-- **Validator**: `github.com/go-playground/validator/v10` (integrasi dengan Gin)
-- **CORS Middleware**: `github.com/gin-contrib/cors`
+## Panduan Restrukturisasi
 
-## Phase 1: Project Initialization
-1. Inisialisasi Go module: Jalankan `go mod init <nama-module>` di root folder.
-2. Download Dependencies: Lakukan `go get` untuk semua package yang telah disebutkan di bagian Tech Stack.
-3. Struktur Folder: Buat struktur project Go standar (contoh: `cmd/api`, `internal`, `pkg`, `migrations`, `configs`).
+Tolong ubah struktur dan pindahkan file-file yang ada pada project ini agar sesuai dengan struktur direktori di bawah ini:
 
-## Phase 2: Configuration & Database Setup
-1. **Environment Variables**: Buat sistem untuk membaca konfigurasi dari `.env` file atau environment OS. Konfigurasi yang dibutuhkan minimal: PORT, Database URL, JWT Secret, dan Google Client ID.
-2. **Database Connection**: Buat koneksi ke PostgreSQL menggunakan `pgxpool`. Pastikan koneksi dikelola dengan baik dan mendukung connection pooling.
-3. **DB Migration Utility**: Buat script (bisa menggunakan Makefile atau root CLI) yang memanfaatkan command line `golang-migrate` untuk menjalankan file SQL yang ada di dalam folder `migrations`.
-4. **Logger Config**: Inisialisasi konfigurasi `zap` logger (json format untuk production, console format untuk environment local/testing).
+```text
+.
+├── cmd/
+│   └── api/
+│       └── main.go          # entry point
+│
+├── internal/
+│   ├── config/              # load env/config
+│   ├── handler/             # HTTP handler (controller)
+│   ├── middleware/          # auth, logging, rate limit
+│   ├── service/             # business logic
+│   ├── repository/          # DB access (pgx/sql)
+│   ├── model/               # struct entity (User, etc)
+│   └── dto/                 # request/response struct
+│
+├── pkg/                     # optional (helper reusable)
+│   ├── logger/              # Pindahkan logger dari internal/logger ke sini
+│   └── utils/               # Pindahkan helper security (jwt, bcrypt, google auth) ke sini
+│
+├── db/
+│   ├── migrations/          # Pindahkan folder migrations yang ada di root ke dalam db/migrations
+│   └── seed/                # optional dummy data
+│
+├── scripts/                 # bash scripts (deploy, migrate)
+│
+├── .env                     # (sudah ada)
+├── .env.example             # (sudah ada)
+├── go.mod                   # (sudah ada)
+├── Makefile                 # (sudah ada)
+└── README.md                # Buatkan file README sederhana jika belum ada
+```
 
-## Phase 3: Core Application Components
-1. **Security & Utilities**:
-   - Buat fungsi helper untuk mengenkripsi password dan memvalidasi hash menggunakan `bcrypt`.
-   - Buat fungsi helper/Service untuk meng-generate dan memverifikasi JWT token.
-   - Buat fungsi helper/Service yang diintegrasikan dengan `idtoken` untuk memvalidasi token login yang didapat dari sisi client/Google SSO.
-2. **Router & Middleware**:
-   - Inisialisasi router `gin`.
-   - Pasang `cors` middleware sesuai kebutuhan.
-   - Buat custom middleware logging menggunakan `zap` untuk mencatat setiap request HTTP yang masuk ke server.
-3. **Validator**: Daftarkan engine `validator/v10` ke dalam Gin (umumnya Gin sudah memiliki binding bawaan untuk ini, cukup kustomisasi terjemahan error bila perlu).
+## Detail Task / Langkah Kerja (High-Level)
 
-## Phase 4: Server Entry Point (`main.go`)
-1. Buat file `main.go` di `cmd/api/main.go`.
-2. Lakukan wiring/dependency injection sederhana (baca config -> init logger -> connect DB -> init router).
-3. Buat rute `GET /ping` sederhana untuk memastikan web server berjalan normal.
-4. Jalankan server HTTP, dan jangan lupa implementasikan **Graceful Shutdown** agar server meng-close koneksi DB dan network dengan aman ketika menerima signal stop / interupsi dari OS.
+1. **Pembuatan Folder Baru**:
+   Buat folder-folder yang belum ada di dalam root project:
+   - `internal/handler/`
+   - `internal/service/`
+   - `internal/repository/`
+   - `internal/model/`
+   - `internal/dto/`
+   - `pkg/logger/`
+   - `pkg/utils/`
+   - `db/migrations/`
+   - `db/seed/`
+   - `scripts/`
+
+2. **Pemindahan File (Migration & Packaging)**:
+   - Pindahkan folder `migrations/` yang ada di luar (root) ke dalam `db/`. Jangan lupa perbarui path migrasi pada file seperti `Makefile` jika diperlukan.
+   - Pindahkan package `logger` dari `internal/logger` ke `pkg/logger`. Lakukan update `import path` di `main.go` dan `middleware`.
+   - Pindahkan helper package yang bersifat utility (seperti fungsi JWT, password hash bcrypt, dan Verifikasi Google di `internal/security`) ke dalam `pkg/utils` atau folder relevan yang sesuai (misal: `pkg/security`).
+   - Pindahkan `internal/validator` ke folder yang sesuai (misal `pkg/validator` atau bagian dari middleware/utils).
+   - Pastikan dependencies yang memanggil file hasil pindahan di-update *import* path-nya (yaitu di `cmd/api/main.go`).
+
+3. **Verifikasi**:
+   - Jalankan `go mod tidy` untuk memastikan tidak ada import yang rusak.
+   - Jalankan `go build -o tmp/api cmd/api/main.go` untuk memastikan kode dapat dikompilasi dengan lancar setelah restrukturisasi.
+
+Pastikan proses refactoring ini tidak mengubah business logic apapun dan hanya mengubah layout direktori serta package imports.
