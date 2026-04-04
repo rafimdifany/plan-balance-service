@@ -16,6 +16,16 @@ func NewAuthHandler(authService service.AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
+// Register
+// @Summary      Register User Baru
+// @Description  Membuat akun user dengan email & password
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        req body dto.RegisterRequest true "User Registration Request"
+// @Success      201 {object} dto.AuthResponse
+// @Failure      400,409 {object} dto.ErrorResponse
+// @Router       /api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -39,6 +49,16 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+// Login
+// @Summary      Login User
+// @Description  Autentikasi user menggunakan email & password
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        req body dto.LoginRequest true "Login Request"
+// @Success      200 {object} dto.AuthResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Router       /api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -62,6 +82,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	})
 }
 
+// GoogleLogin
+// @Summary      Google Login
+// @Description  Autentikasi user menggunakan Google ID Token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        req body dto.GoogleLoginRequest true "Google Login Request"
+// @Success      200 {object} dto.AuthResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Router       /api/v1/auth/google [post]
 func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	var req dto.GoogleLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -81,6 +111,16 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	})
 }
 
+// Refresh
+// @Summary      Refresh Token
+// @Description  Memperbarui Access Token menggunakan Refresh Token
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        req body dto.RefreshTokenRequest true "Refresh Token Request"
+// @Success      200 {object} dto.RefreshResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Router       /api/v1/auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -100,6 +140,16 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	})
 }
 
+// Logout
+// @Summary      Logout
+// @Description  Mencabut Refresh Token dan mengakhiri sesi
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        req body dto.RefreshTokenRequest true "Logout Request"
+// @Success      200 {object} dto.LogoutResponse
+// @Failure      401 {object} dto.ErrorResponse
+// @Router       /api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

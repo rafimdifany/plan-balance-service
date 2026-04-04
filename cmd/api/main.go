@@ -20,8 +20,18 @@ import (
 	"plan-balance-service/internal/service"
 	"plan-balance-service/pkg/logger"
 	"plan-balance-service/pkg/utils"
+
+	_ "plan-balance-service/docs" // Import Swagger docs
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// @title           Plan Balance API
+// @version         1.0
+// @description     REST API Service for Plan Balance Application.
+// @host            localhost:8080
+// @BasePath        /
 func main() {
 	// 1. Load Config
 	cfg := config.LoadConfig()
@@ -58,6 +68,9 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.ZapLogger(log))
 	router.Use(middleware.NewCORS())
+
+	// Swagger Route
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Routes
 	v1 := router.Group("/api/v1")
