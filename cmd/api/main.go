@@ -52,12 +52,15 @@ func main() {
 	userRepo := repository.NewUserRepository(db.GetPool())
 	authRepo := repository.NewAuthRepository(db.GetPool())
 	sessionRepo := repository.NewSessionRepository(db.GetPool())
+	categoryRepo := repository.NewCategoryRepository(db.GetPool())
 
 	// Services
-	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, cfg, db.GetPool())
+	categoryService := service.NewCategoryService(categoryRepo)
+	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, categoryService, cfg, db.GetPool())
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
@@ -88,7 +91,14 @@ func main() {
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 		{
-			// Future protected endpoints will be added here
+			categories := protected.Group("/categories")
+			{
+				categories.POST("", categoryHandler.Create)
+				categories.GET("", categoryHandler.GetAll)
+				categories.GET("/:id", categoryHandler.GetByID)
+				categories.PUT("/:id", categoryHandler.Update)
+				categories.DELETE("/:id", categoryHandler.Delete)
+			}
 		}
 	}
 

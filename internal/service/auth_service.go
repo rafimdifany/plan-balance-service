@@ -33,6 +33,7 @@ type authService struct {
 	userRepo    repository.UserRepository
 	authRepo    repository.AuthRepository
 	sessionRepo repository.SessionRepository
+	categorySvc CategoryService
 	cfg         *config.Config
 	db          *pgxpool.Pool
 }
@@ -41,6 +42,7 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	authRepo repository.AuthRepository,
 	sessionRepo repository.SessionRepository,
+	categorySvc CategoryService,
 	cfg *config.Config,
 	db *pgxpool.Pool,
 ) AuthService {
@@ -48,6 +50,7 @@ func NewAuthService(
 		userRepo:    userRepo,
 		authRepo:    authRepo,
 		sessionRepo: sessionRepo,
+		categorySvc: categorySvc,
 		cfg:         cfg,
 		db:          db,
 	}
@@ -97,6 +100,11 @@ func (s *authService) Register(ctx context.Context, req dto.RegisterRequest) (*d
 	}
 
 	if err := s.authRepo.CreateTx(ctx, tx, auth); err != nil {
+		return nil, err
+	}
+
+	// Seed Default Categories
+	if err := s.categorySvc.SeedDefaultCategories(ctx, tx, user.ID); err != nil {
 		return nil, err
 	}
 
