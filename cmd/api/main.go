@@ -83,6 +83,13 @@ func main() {
 			auth.POST("/refresh", authHandler.Refresh)
 			auth.POST("/logout", authHandler.Logout)
 		}
+
+		// Protected Routes
+		protected := v1.Group("")
+		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+		{
+			// Future protected endpoints will be added here
+		}
 	}
 
 	// Health Check
