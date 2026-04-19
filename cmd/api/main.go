@@ -54,16 +54,19 @@ func main() {
 	sessionRepo := repository.NewSessionRepository(db.GetPool())
 	categoryRepo := repository.NewCategoryRepository(db.GetPool())
 	assetRepo := repository.NewAssetRepository(db.GetPool())
+	transactionRepo := repository.NewTransactionRepository(db.GetPool())
 
 	// Services
 	categoryService := service.NewCategoryService(categoryRepo)
 	assetService := service.NewAssetService(assetRepo)
+	transactionService := service.NewTransactionService(transactionRepo, assetRepo, categoryRepo, db.GetPool())
 	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, categoryService, cfg, db.GetPool())
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	assetHandler := handler.NewAssetHandler(assetService)
+	transactionHandler := handler.NewTransactionHandler(transactionService)
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
@@ -110,6 +113,16 @@ func main() {
 				assets.GET("/:id", assetHandler.GetByID)
 				assets.PUT("/:id", assetHandler.Update)
 				assets.DELETE("/:id", assetHandler.Delete)
+			}
+
+			transactions := protected.Group("/transactions")
+			{
+				transactions.POST("", transactionHandler.Create)
+				transactions.GET("", transactionHandler.List)
+				transactions.GET("/summary", transactionHandler.GetSummary)
+				transactions.GET("/:id", transactionHandler.GetByID)
+				transactions.PUT("/:id", transactionHandler.Update)
+				transactions.DELETE("/:id", transactionHandler.Delete)
 			}
 		}
 	}
