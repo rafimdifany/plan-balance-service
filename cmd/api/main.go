@@ -53,14 +53,17 @@ func main() {
 	authRepo := repository.NewAuthRepository(db.GetPool())
 	sessionRepo := repository.NewSessionRepository(db.GetPool())
 	categoryRepo := repository.NewCategoryRepository(db.GetPool())
+	assetRepo := repository.NewAssetRepository(db.GetPool())
 
 	// Services
 	categoryService := service.NewCategoryService(categoryRepo)
+	assetService := service.NewAssetService(assetRepo)
 	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, categoryService, cfg, db.GetPool())
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
+	assetHandler := handler.NewAssetHandler(assetService)
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
@@ -98,6 +101,15 @@ func main() {
 				categories.GET("/:id", categoryHandler.GetByID)
 				categories.PUT("/:id", categoryHandler.Update)
 				categories.DELETE("/:id", categoryHandler.Delete)
+			}
+
+			assets := protected.Group("/assets")
+			{
+				assets.POST("", assetHandler.Create)
+				assets.GET("", assetHandler.GetAll)
+				assets.GET("/:id", assetHandler.GetByID)
+				assets.PUT("/:id", assetHandler.Update)
+				assets.DELETE("/:id", assetHandler.Delete)
 			}
 		}
 	}
