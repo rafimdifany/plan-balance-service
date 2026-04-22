@@ -146,7 +146,6 @@ func (s *goalService) calculateProgress(ctx context.Context, userID uuid.UUID, g
 		}
 	} else if g.Type == model.GoalTypeBudget && g.CategoryID != nil {
 		// Calculate total expenses for this category in the current period
-		startDate := g.StartDate
 		endDate := time.Now()
 		if g.EndDate != nil && g.EndDate.Before(endDate) {
 			endDate = *g.EndDate

@@ -56,12 +56,15 @@ func main() {
 	assetRepo := repository.NewAssetRepository(db.GetPool())
 	transactionRepo := repository.NewTransactionRepository(db.GetPool())
 	todoRepo := repository.NewTodoRepository(db.GetPool())
+	goalRepo := repository.NewGoalRepository(db.GetPool())
 
 	// Services
 	categoryService := service.NewCategoryService(categoryRepo)
 	assetService := service.NewAssetService(assetRepo)
 	transactionService := service.NewTransactionService(transactionRepo, assetRepo, categoryRepo, db.GetPool())
 	todoService := service.NewTodoService(todoRepo, categoryRepo)
+	goalService := service.NewGoalService(goalRepo, assetRepo, transactionRepo)
+	dashboardService := service.NewDashboardService(assetRepo, transactionRepo, goalRepo, todoRepo, goalService, transactionService)
 	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, categoryService, cfg, db.GetPool())
 
 	// Handlers
@@ -70,6 +73,8 @@ func main() {
 	assetHandler := handler.NewAssetHandler(assetService)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	todoHandler := handler.NewTodoHandler(todoService)
+	goalHandler := handler.NewGoalHandler(goalService)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
@@ -137,6 +142,17 @@ func main() {
 				todos.PATCH("/:id/status", todoHandler.PatchStatus)
 				todos.DELETE("/:id", todoHandler.Delete)
 			}
+
+			goals := protected.Group("/goals")
+			{
+				goals.POST("", goalHandler.Create)
+				goals.GET("", goalHandler.List)
+				goals.GET("/:id", goalHandler.GetByID)
+				goals.PUT("/:id", goalHandler.Update)
+				goals.DELETE("/:id", goalHandler.Delete)
+			}
+
+			v1.GET("/dashboard/summary", dashboardHandler.GetSummary)
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"plan-balance-service/internal/dto"
 	"plan-balance-service/internal/repository"
 )
@@ -43,10 +44,10 @@ func NewDashboardService(
 func (s *dashboardService) GetSummary(ctx context.Context, userID uuid.UUID) (*dto.DashboardResponse, error) {
 	// 1. Total Balance
 	assets, err := s.assetRepo.GetAllByUserID(ctx, userID)
-	var totalBalance = float64(0)
+	totalBalance := decimal.NewFromInt(0)
 	if err == nil {
 		for _, a := range assets {
-			totalBalance += a.Balance.InexactFloat64()
+			totalBalance = totalBalance.Add(a.Balance)
 		}
 	}
 
@@ -69,7 +70,7 @@ func (s *dashboardService) GetSummary(ctx context.Context, userID uuid.UUID) (*d
 
 	res := &dto.DashboardResponse{}
 	res.Message = "Dashboard summary fetched successfully"
-	res.Data.TotalBalance = repository.ToDecimal(totalBalance)
+	res.Data.TotalBalance = totalBalance
 	res.Data.MonthlyIncome = income
 	res.Data.MonthlyExpense = expense
 	if transList != nil {
