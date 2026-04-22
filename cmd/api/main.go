@@ -55,11 +55,13 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db.GetPool())
 	assetRepo := repository.NewAssetRepository(db.GetPool())
 	transactionRepo := repository.NewTransactionRepository(db.GetPool())
+	todoRepo := repository.NewTodoRepository(db.GetPool())
 
 	// Services
 	categoryService := service.NewCategoryService(categoryRepo)
 	assetService := service.NewAssetService(assetRepo)
 	transactionService := service.NewTransactionService(transactionRepo, assetRepo, categoryRepo, db.GetPool())
+	todoService := service.NewTodoService(todoRepo, categoryRepo)
 	authService := service.NewAuthService(userRepo, authRepo, sessionRepo, categoryService, cfg, db.GetPool())
 
 	// Handlers
@@ -67,6 +69,7 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	assetHandler := handler.NewAssetHandler(assetService)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
+	todoHandler := handler.NewTodoHandler(todoService)
 
 	// 5. Setup Gin Router
 	if cfg.Environment == "production" {
@@ -123,6 +126,16 @@ func main() {
 				transactions.GET("/:id", transactionHandler.GetByID)
 				transactions.PUT("/:id", transactionHandler.Update)
 				transactions.DELETE("/:id", transactionHandler.Delete)
+			}
+
+			todos := protected.Group("/todos")
+			{
+				todos.POST("", todoHandler.Create)
+				todos.GET("", todoHandler.List)
+				todos.GET("/:id", todoHandler.GetByID)
+				todos.PUT("/:id", todoHandler.Update)
+				todos.PATCH("/:id/status", todoHandler.PatchStatus)
+				todos.DELETE("/:id", todoHandler.Delete)
 			}
 		}
 	}
